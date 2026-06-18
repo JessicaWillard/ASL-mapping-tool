@@ -283,7 +283,7 @@ export const HEADERS = [
 ];
 
 export const CAT_COLORS = {
-  Navigation: "#6366f1",
+  Navigation: "#6366f2",
   Cartes: "#0ea5e9",
   Contenu: "#10b981",
   Média: "#8b5cf6",
