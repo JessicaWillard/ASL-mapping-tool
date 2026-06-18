@@ -925,20 +925,28 @@ export default function ContentMapper() {
               const isOpen = expandedPage === page.id;
               const pSt = PAGE_STATUS[page.status] || PAGE_STATUS.draft;
               const isDragging = dragIndex === pageIndex;
-              const isDropTarget = dragOverIndex === pageIndex && dragIndex !== pageIndex;
+              const isDropTarget =
+                dragOverIndex === pageIndex && dragIndex !== pageIndex;
               return (
                 <div
                   key={page.id}
                   draggable
                   onDragStart={() => setDragIndex(pageIndex)}
-                  onDragOver={(e) => { e.preventDefault(); setDragOverIndex(pageIndex); }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOverIndex(pageIndex);
+                  }}
                   onDrop={(e) => {
                     e.preventDefault();
-                    if (dragIndex !== null && dragIndex !== pageIndex) reorderPages(dragIndex, pageIndex);
+                    if (dragIndex !== null && dragIndex !== pageIndex)
+                      reorderPages(dragIndex, pageIndex);
                     setDragIndex(null);
                     setDragOverIndex(null);
                   }}
-                  onDragEnd={() => { setDragIndex(null); setDragOverIndex(null); }}
+                  onDragEnd={() => {
+                    setDragIndex(null);
+                    setDragOverIndex(null);
+                  }}
                   style={{
                     background: "white",
                     borderRadius: 12,
@@ -979,7 +987,9 @@ export default function ContentMapper() {
                     </span>
                     <input
                       value={page.name}
-                      onChange={(e) => updatePage(page.id, "name", e.target.value)}
+                      onChange={(e) =>
+                        updatePage(page.id, "name", e.target.value)
+                      }
                       onClick={(e) => e.stopPropagation()}
                       style={{
                         fontWeight: 700,
@@ -1079,7 +1089,9 @@ export default function ContentMapper() {
                     >
                       <input
                         value={page.notes || ""}
-                        onChange={(e) => updatePage(page.id, "notes", e.target.value)}
+                        onChange={(e) =>
+                          updatePage(page.id, "notes", e.target.value)
+                        }
                         placeholder="Notes sur cette page…"
                         style={{
                           fontSize: 12,
@@ -1296,7 +1308,7 @@ export default function ContentMapper() {
                                   </div>
                                 </div>
                                 {/* Notes */}
-                                <input
+                                <textarea
                                   value={ma.notes}
                                   onChange={(e) =>
                                     updateModule(
@@ -1307,15 +1319,18 @@ export default function ContentMapper() {
                                     )
                                   }
                                   placeholder="Notes…"
+                                  rows={3}
                                   style={{
                                     padding: "5px 9px",
                                     borderRadius: 8,
                                     border: "1px solid #e2e8f0",
                                     fontSize: 12,
-                                    flex: "0 1 160px",
+                                    flex: "0 1 500px",
                                     minWidth: 0,
+                                    resize: "vertical",
+                                    fontFamily: "inherit",
                                   }}
-                                />
+                                ></textarea>
                                 {/* Source */}
                                 <div
                                   style={{
