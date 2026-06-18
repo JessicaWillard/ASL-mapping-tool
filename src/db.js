@@ -58,15 +58,37 @@ function createSchema() {
 
   db.run(`
     CREATE TABLE IF NOT EXISTS page_modules (
+      instance_id TEXT NOT NULL PRIMARY KEY,
       page_id TEXT NOT NULL,
       module_id INTEGER NOT NULL,
       source TEXT DEFAULT '',
       notes TEXT DEFAULT '',
       sort_order INTEGER NOT NULL,
-      PRIMARY KEY (page_id, module_id),
       FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE
     );
   `);
+  // Migration: recreate page_modules with instance_id if it predates this column
+  try {
+    const cols = db.exec("PRAGMA table_info(page_modules)")[0]?.values ?? [];
+    const hasInstanceId = cols.some((c) => c[1] === "instance_id");
+    if (!hasInstanceId) {
+      db.run(`CREATE TABLE page_modules_new (
+        instance_id TEXT NOT NULL PRIMARY KEY,
+        page_id TEXT NOT NULL,
+        module_id INTEGER NOT NULL,
+        source TEXT DEFAULT '',
+        notes TEXT DEFAULT '',
+        sort_order INTEGER NOT NULL,
+        FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE
+      )`);
+      const rows = db.exec("SELECT page_id, module_id, source, notes, sort_order FROM page_modules")[0]?.values ?? [];
+      rows.forEach((row, i) => {
+        db.run("INSERT INTO page_modules_new VALUES (?, ?, ?, ?, ?, ?)", [`mig_${i}`, ...row]);
+      });
+      db.run("DROP TABLE page_modules");
+      db.run("ALTER TABLE page_modules_new RENAME TO page_modules");
+    }
+  } catch {}
 }
 
 function rowsToPages() {
@@ -91,13 +113,14 @@ function rowsToPages() {
   pageStmt.free();
 
   const modStmt = db.prepare(
-    "SELECT page_id, module_id, source, notes FROM page_modules ORDER BY sort_order"
+    "SELECT instance_id, page_id, module_id, source, notes FROM page_modules ORDER BY sort_order"
   );
   while (modStmt.step()) {
     const row = modStmt.getAsObject();
     const page = pages.find((p) => p.id === row.page_id);
     if (page) {
       page.modules.push({
+        instanceId: row.instance_id,
         moduleId: row.module_id,
         source: row.source || "",
         notes: row.notes || "",
@@ -119,7 +142,7 @@ function writePages(pages) {
       "INSERT INTO pages (id, name, url, notes, status, header, header_notes, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
     );
     const insertModule = db.prepare(
-      "INSERT INTO page_modules (page_id, module_id, source, notes, sort_order) VALUES (?, ?, ?, ?, ?)"
+      "INSERT INTO page_modules (instance_id, page_id, module_id, source, notes, sort_order) VALUES (?, ?, ?, ?, ?, ?)"
     );
 
     pages.forEach((page, pageIndex) => {
@@ -135,6 +158,7 @@ function writePages(pages) {
       ]);
       page.modules.forEach((mod, modIndex) => {
         insertModule.run([
+          mod.instanceId || `${page.id}_${modIndex}`,
           page.id,
           mod.moduleId,
           mod.source || "",

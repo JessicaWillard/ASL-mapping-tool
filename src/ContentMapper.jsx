@@ -108,18 +108,17 @@ export default function ContentMapper() {
   const addModule = (pageId, moduleId) => {
     setPages((prev) =>
       prev.map((p) => {
-        if (p.id !== pageId || p.modules.find((m) => m.moduleId === moduleId))
-          return p;
+        if (p.id !== pageId) return p;
         return {
           ...p,
-          modules: [...p.modules, { moduleId, source: "", notes: "" }],
+          modules: [...p.modules, { instanceId: `${pageId}_${moduleId}_${Date.now()}`, moduleId, source: "", notes: "" }],
         };
       }),
     );
     setShowModulePicker(null);
   };
 
-  const updateModule = (pageId, moduleId, field, value) =>
+  const updateModule = (pageId, instanceId, field, value) =>
     setPages((prev) =>
       prev.map((p) =>
         p.id !== pageId
@@ -127,18 +126,18 @@ export default function ContentMapper() {
           : {
               ...p,
               modules: p.modules.map((m) =>
-                m.moduleId !== moduleId ? m : { ...m, [field]: value },
+                m.instanceId !== instanceId ? m : { ...m, [field]: value },
               ),
             },
       ),
     );
 
-  const removeModule = (pageId, moduleId) =>
+  const removeModule = (pageId, instanceId) =>
     setPages((prev) =>
       prev.map((p) =>
         p.id !== pageId
           ? p
-          : { ...p, modules: p.modules.filter((m) => m.moduleId !== moduleId) },
+          : { ...p, modules: p.modules.filter((m) => m.instanceId !== instanceId) },
       ),
     );
 
@@ -151,12 +150,12 @@ export default function ContentMapper() {
     });
   };
 
-  const moveModule = (pageId, moduleId, dir) => {
+  const moveModule = (pageId, instanceId, dir) => {
     setPages((prev) =>
       prev.map((p) => {
         if (p.id !== pageId) return p;
         const mods = [...p.modules];
-        const idx = mods.findIndex((m) => m.moduleId === moduleId);
+        const idx = mods.findIndex((m) => m.instanceId === instanceId);
         const newIdx = idx + dir;
         if (newIdx < 0 || newIdx >= mods.length) return p;
         [mods[idx], mods[newIdx]] = [mods[newIdx], mods[idx]];
@@ -1220,7 +1219,7 @@ export default function ContentMapper() {
                             const href = sourceHref(ma.source);
                             return (
                               <div
-                                key={ma.moduleId}
+                                key={ma.instanceId}
                                 style={{
                                   display: "flex",
                                   alignItems: "center",
@@ -1240,7 +1239,7 @@ export default function ContentMapper() {
                                 >
                                   <button
                                     onClick={() =>
-                                      moveModule(page.id, ma.moduleId, -1)
+                                      moveModule(page.id, ma.instanceId, -1)
                                     }
                                     disabled={idx === 0}
                                     style={{
@@ -1257,7 +1256,7 @@ export default function ContentMapper() {
                                   </button>
                                   <button
                                     onClick={() =>
-                                      moveModule(page.id, ma.moduleId, 1)
+                                      moveModule(page.id, ma.instanceId, 1)
                                     }
                                     disabled={idx === page.modules.length - 1}
                                     style={{
@@ -1313,7 +1312,7 @@ export default function ContentMapper() {
                                   onChange={(e) =>
                                     updateModule(
                                       page.id,
-                                      ma.moduleId,
+                                      ma.instanceId,
                                       "notes",
                                       e.target.value,
                                     )
@@ -1346,7 +1345,7 @@ export default function ContentMapper() {
                                     onChange={(e) =>
                                       updateModule(
                                         page.id,
-                                        ma.moduleId,
+                                        ma.instanceId,
                                         "source",
                                         e.target.value,
                                       )
@@ -1382,7 +1381,7 @@ export default function ContentMapper() {
                                 {/* Remove */}
                                 <button
                                   onClick={() =>
-                                    removeModule(page.id, ma.moduleId)
+                                    removeModule(page.id, ma.instanceId)
                                   }
                                   style={{
                                     background: "none",
@@ -1435,12 +1434,7 @@ export default function ContentMapper() {
                               overflowY: "auto",
                             }}
                           >
-                            {MODULES.filter(
-                              (m) =>
-                                !page.modules.find(
-                                  (pm) => pm.moduleId === m.id,
-                                ),
-                            ).map((mod) => {
+                            {MODULES.map((mod) => {
                               const thumb = getModuleThumbnail(mod.id);
                               return (
                                 <button
