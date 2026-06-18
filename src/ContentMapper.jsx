@@ -28,6 +28,8 @@ export default function ContentMapper() {
   const [showAddPage, setShowAddPage] = useState(false);
   const [newPage, setNewPage] = useState({ name: "", url: "", notes: "" });
   const [showModulePicker, setShowModulePicker] = useState(null);
+  const [dragIndex, setDragIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [saveState, setSaveState] = useState("idle"); // idle | saving | saved | error
   const saveTimerRef = useRef(null);
@@ -139,6 +141,15 @@ export default function ContentMapper() {
           : { ...p, modules: p.modules.filter((m) => m.moduleId !== moduleId) },
       ),
     );
+
+  const reorderPages = (fromIndex, toIndex) => {
+    setPages((prev) => {
+      const arr = [...prev];
+      const [moved] = arr.splice(fromIndex, 1);
+      arr.splice(toIndex, 0, moved);
+      return arr;
+    });
+  };
 
   const moveModule = (pageId, moduleId, dir) => {
     setPages((prev) =>
@@ -910,18 +921,34 @@ export default function ContentMapper() {
 
           {/* Page list */}
           <div>
-            {pages.map((page) => {
+            {pages.map((page, pageIndex) => {
               const isOpen = expandedPage === page.id;
               const pSt = PAGE_STATUS[page.status] || PAGE_STATUS.draft;
+              const isDragging = dragIndex === pageIndex;
+              const isDropTarget = dragOverIndex === pageIndex && dragIndex !== pageIndex;
               return (
                 <div
                   key={page.id}
+                  draggable
+                  onDragStart={() => setDragIndex(pageIndex)}
+                  onDragOver={(e) => { e.preventDefault(); setDragOverIndex(pageIndex); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (dragIndex !== null && dragIndex !== pageIndex) reorderPages(dragIndex, pageIndex);
+                    setDragIndex(null);
+                    setDragOverIndex(null);
+                  }}
+                  onDragEnd={() => { setDragIndex(null); setDragOverIndex(null); }}
                   style={{
                     background: "white",
                     borderRadius: 12,
                     marginBottom: 10,
                     boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
                     overflow: "hidden",
+                    opacity: isDragging ? 0.4 : 1,
+                    outline: isDropTarget ? "2px solid #2f79ff" : "none",
+                    outlineOffset: -2,
+                    transition: "opacity 0.15s, outline 0.1s",
                   }}
                 >
                   {/* Row header */}
@@ -937,6 +964,19 @@ export default function ContentMapper() {
                       background: isOpen ? "#fafcff" : "white",
                     }}
                   >
+                    <span
+                      title="Glisser pour réorganiser"
+                      style={{
+                        cursor: "grab",
+                        color: "#cbd5e1",
+                        fontSize: 15,
+                        flexShrink: 0,
+                        userSelect: "none",
+                        lineHeight: 1,
+                      }}
+                    >
+                      ⠿
+                    </span>
                     <span
                       style={{
                         fontWeight: 700,
