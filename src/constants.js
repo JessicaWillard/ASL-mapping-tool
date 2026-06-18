@@ -197,6 +197,15 @@ export const MODULES = [
     link: "https://xd.adobe.com/view/01a61cf0-b9ec-4228-a251-933dbf0369d0-54f5/screen/c7968ba7-4eaf-48d5-94c0-3814141615c7/specs/",
     linkLabel: "Maquette",
   },
+  {
+    id: 22,
+    name: "Manquant",
+    cat: "Manquant",
+    desc: "Emplacement réservé pour un module non encore identifié ou à définir.",
+    needs: [],
+    link: "",
+    linkLabel: "",
+  },
 ];
 
 export const HEADERS = [
@@ -292,6 +301,7 @@ export const CAT_COLORS = {
   CTA: "#f97316",
   Personnes: "#ec4899",
   Social: "#1d9bf0",
+  Manquant: "#94a3b8",
 };
 
 export const PAGE_STATUS = {
