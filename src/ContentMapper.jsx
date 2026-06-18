@@ -977,19 +977,22 @@ export default function ContentMapper() {
                     >
                       ⠿
                     </span>
-                    <span
+                    <input
+                      value={page.name}
+                      onChange={(e) => updatePage(page.id, "name", e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
                       style={{
                         fontWeight: 700,
                         fontSize: 14,
                         flex: 1,
                         minWidth: 0,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
+                        border: "none",
+                        outline: "none",
+                        background: "transparent",
+                        cursor: "text",
+                        padding: 0,
                       }}
-                    >
-                      {page.name}
-                    </span>
+                    />
                     {page.url && (
                       <span
                         style={{
@@ -1074,21 +1077,23 @@ export default function ContentMapper() {
                         borderTop: "1px solid #f1f5f9",
                       }}
                     >
-                      {page.notes && (
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#64748b",
-                            fontStyle: "italic",
-                            marginBottom: 12,
-                            padding: "8px 12px",
-                            background: "#f8fafc",
-                            borderRadius: 8,
-                          }}
-                        >
-                          📝 {page.notes}
-                        </div>
-                      )}
+                      <input
+                        value={page.notes || ""}
+                        onChange={(e) => updatePage(page.id, "notes", e.target.value)}
+                        placeholder="Notes sur cette page…"
+                        style={{
+                          fontSize: 12,
+                          color: "#64748b",
+                          marginBottom: 12,
+                          padding: "8px 12px",
+                          background: "#f8fafc",
+                          borderRadius: 8,
+                          border: "1px solid #e2e8f0",
+                          width: "100%",
+                          boxSizing: "border-box",
+                          outline: "none",
+                        }}
+                      />
 
                       {/* Header selector */}
                       <div style={{ marginBottom: 16 }}>
