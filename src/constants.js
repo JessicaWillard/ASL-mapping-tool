@@ -3,7 +3,7 @@ export const MODULES = [
     id: 1,
     name: "Mosaïque d'images + texte",
     cat: "Média",
-    desc: "Grille d'images combinée à un bloc texte éditorial. Idéal pour introductions visuelles riches ou galeries contextuelles.",
+    desc: "Grille d'images combinée à un bloc texte. Idéal pour introductions visuelles riches ou galeries contextuelles.",
     needs: ["Images (6-9)", "Titre", "Texte", "CTA optionnel"],
     link: "https://xd.adobe.com/view/01a61cf0-b9ec-4228-a251-933dbf0369d0-54f5/screen/4da79410-08d7-4c22-b87d-0a4146d0a744/specs/",
     linkLabel: "Maquette",
