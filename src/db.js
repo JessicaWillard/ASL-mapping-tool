@@ -1,122 +1,21 @@
-import initSqlJs from "sql.js";
-import wasmUrl from "sql.js/dist/sql-wasm.wasm?url";
+// db.js — replaced sql.js/IndexedDB with shared Neon backend via /api/pages
 
-const IDB_NAME = "asl-content-mapper";
-const IDB_STORE = "db";
-const IDB_KEY = "asl-mapping-db";
-const LEGACY_STORAGE_KEY = "asl-mapping-v1";
+const API_URL = "/api/pages";
 
-let SQL = null;
-let db = null;
+// Shape raw API rows into the page objects the UI expects
+function buildPages(rawPages, rawModules) {
+  const pages = rawPages.map((row) => ({
+    id: row.id,
+    name: row.name,
+    url: row.url || "",
+    notes: row.notes || "",
+    status: row.status || "draft",
+    header: row.header || undefined,
+    headerNotes: row.header_notes || "",
+    modules: [],
+  }));
 
-function openIndexedDB() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(IDB_NAME, 1);
-    request.onupgradeneeded = () => {
-      request.result.createObjectStore(IDB_STORE);
-    };
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-  });
-}
-
-async function loadDbBytes() {
-  const idb = await openIndexedDB();
-  return new Promise((resolve, reject) => {
-    const tx = idb.transaction(IDB_STORE, "readonly");
-    const get = tx.objectStore(IDB_STORE).get(IDB_KEY);
-    get.onsuccess = () => resolve(get.result ?? null);
-    get.onerror = () => reject(get.error);
-  });
-}
-
-async function persistDbBytes(bytes) {
-  const idb = await openIndexedDB();
-  return new Promise((resolve, reject) => {
-    const tx = idb.transaction(IDB_STORE, "readwrite");
-    tx.objectStore(IDB_STORE).put(bytes, IDB_KEY);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-function createSchema() {
-  db.run(`
-    CREATE TABLE IF NOT EXISTS pages (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      url TEXT DEFAULT '',
-      notes TEXT DEFAULT '',
-      status TEXT DEFAULT 'draft',
-      header TEXT,
-      header_notes TEXT DEFAULT '',
-      sort_order INTEGER NOT NULL
-    );
-  `);
-  // Migration: add header_notes to existing databases that predate this column
-  try { db.run("ALTER TABLE pages ADD COLUMN header_notes TEXT DEFAULT ''"); } catch {}
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS page_modules (
-      instance_id TEXT NOT NULL PRIMARY KEY,
-      page_id TEXT NOT NULL,
-      module_id INTEGER NOT NULL,
-      source TEXT DEFAULT '',
-      notes TEXT DEFAULT '',
-      sort_order INTEGER NOT NULL,
-      FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE
-    );
-  `);
-  // Migration: recreate page_modules with instance_id if it predates this column
-  try {
-    const cols = db.exec("PRAGMA table_info(page_modules)")[0]?.values ?? [];
-    const hasInstanceId = cols.some((c) => c[1] === "instance_id");
-    if (!hasInstanceId) {
-      db.run(`CREATE TABLE page_modules_new (
-        instance_id TEXT NOT NULL PRIMARY KEY,
-        page_id TEXT NOT NULL,
-        module_id INTEGER NOT NULL,
-        source TEXT DEFAULT '',
-        notes TEXT DEFAULT '',
-        sort_order INTEGER NOT NULL,
-        FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE
-      )`);
-      const rows = db.exec("SELECT page_id, module_id, source, notes, sort_order FROM page_modules")[0]?.values ?? [];
-      rows.forEach((row, i) => {
-        db.run("INSERT INTO page_modules_new VALUES (?, ?, ?, ?, ?, ?)", [`mig_${i}`, ...row]);
-      });
-      db.run("DROP TABLE page_modules");
-      db.run("ALTER TABLE page_modules_new RENAME TO page_modules");
-    }
-  } catch {}
-}
-
-function rowsToPages() {
-  const pages = [];
-
-  const pageStmt = db.prepare(
-    "SELECT id, name, url, notes, status, header, header_notes FROM pages ORDER BY sort_order"
-  );
-  while (pageStmt.step()) {
-    const row = pageStmt.getAsObject();
-    pages.push({
-      id: row.id,
-      name: row.name,
-      url: row.url || "",
-      notes: row.notes || "",
-      status: row.status || "draft",
-      header: row.header || undefined,
-      headerNotes: row.header_notes || "",
-      modules: [],
-    });
-  }
-  pageStmt.free();
-
-  const modStmt = db.prepare(
-    "SELECT instance_id, page_id, module_id, source, notes FROM page_modules ORDER BY sort_order"
-  );
-  while (modStmt.step()) {
-    const row = modStmt.getAsObject();
+  for (const row of rawModules) {
     const page = pages.find((p) => p.id === row.page_id);
     if (page) {
       page.modules.push({
@@ -127,97 +26,55 @@ function rowsToPages() {
       });
     }
   }
-  modStmt.free();
 
   return pages;
 }
 
-function writePages(pages) {
-  db.run("BEGIN");
-  try {
-    db.run("DELETE FROM page_modules");
-    db.run("DELETE FROM pages");
+// Flatten page objects back into rows for the API
+function flattenPages(pages) {
+  const rawPages = pages.map((p, i) => ({
+    id: p.id,
+    name: p.name,
+    url: p.url ?? "",
+    notes: p.notes ?? "",
+    status: p.status ?? "draft",
+    header: p.header ?? null,
+    header_notes: p.headerNotes ?? "",
+    sort_order: i,
+  }));
 
-    const insertPage = db.prepare(
-      "INSERT INTO pages (id, name, url, notes, status, header, header_notes, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-    );
-    const insertModule = db.prepare(
-      "INSERT INTO page_modules (instance_id, page_id, module_id, source, notes, sort_order) VALUES (?, ?, ?, ?, ?, ?)"
-    );
-
-    pages.forEach((page, pageIndex) => {
-      insertPage.run([
-        page.id,
-        page.name,
-        page.url || "",
-        page.notes || "",
-        page.status || "draft",
-        page.header || null,
-        page.headerNotes || "",
-        pageIndex,
-      ]);
-      page.modules.forEach((mod, modIndex) => {
-        insertModule.run([
-          mod.instanceId || `${page.id}_${modIndex}`,
-          page.id,
-          mod.moduleId,
-          mod.source || "",
-          mod.notes || "",
-          modIndex,
-        ]);
+  const rawModules = [];
+  for (const p of pages) {
+    (p.modules || []).forEach((m, i) => {
+      rawModules.push({
+        instance_id: m.instanceId,
+        page_id: p.id,
+        module_id: m.moduleId,
+        source: m.source ?? "",
+        notes: m.notes ?? "",
+        sort_order: i,
       });
     });
-
-    insertPage.free();
-    insertModule.free();
-    db.run("COMMIT");
-  } catch (e) {
-    db.run("ROLLBACK");
-    throw e;
-  }
-}
-
-async function persistDb() {
-  const bytes = db.export();
-  await persistDbBytes(bytes);
-}
-
-async function loadLegacyLocalStorage() {
-  try {
-    const r = await window.storage?.get(LEGACY_STORAGE_KEY);
-    if (!r?.value) return null;
-    const parsed = JSON.parse(r.value);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-export async function initDatabase(defaultPages) {
-  if (!SQL) {
-    SQL = await initSqlJs({ locateFile: () => wasmUrl });
   }
 
-  const existing = await loadDbBytes();
-  if (existing) {
-    db = new SQL.Database(new Uint8Array(existing));
-    createSchema();
-    const pages = rowsToPages();
-    if (pages.length > 0) return pages;
-  }
-
-  db = new SQL.Database();
-  createSchema();
-
-  const legacy = await loadLegacyLocalStorage();
-  const pages = legacy ?? defaultPages;
-  writePages(pages);
-  await persistDb();
-  return pages;
+  return { pages: rawPages, modules: rawModules };
 }
 
+// Load all pages from the shared Neon database
+export async function initDatabase() {
+  const res = await fetch(API_URL);
+  if (!res.ok) throw new Error(`Failed to load pages: ${res.statusText}`);
+  const { pages, modules } = await res.json();
+  return buildPages(pages, modules);
+}
+
+// Save all pages to the shared Neon database
 export async function savePages(pages) {
-  if (!db) throw new Error("Database not initialized");
-  writePages(pages);
-  await persistDb();
+  const body = flattenPages(pages);
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Failed to save pages: ${res.statusText}`);
 }
